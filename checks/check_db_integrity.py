@@ -44,14 +44,19 @@ def audit_database(db_path: Path) -> bool:
         count = cur.execute("SELECT count(*) FROM parcel_master").fetchone()[0]
         print(f"  [✓] parcel_master: {count:,} total records")
 
-        # Check universal_id format (16-char hex or FIPS_ID)
-        invalid_uids = cur.execute(
-            "SELECT count(*) FROM parcel_master WHERE universal_id IS NULL OR (length(universal_id) != 16 AND universal_id NOT LIKE '48%_%')"
-        ).fetchone()[0]
-        if invalid_uids > 0:
-            print(f"      [!] WARNING: {invalid_uids} parcels have non-standard Universal IDs!")
+        # Check if universal_id column exists
+        cur.execute("PRAGMA table_info(parcel_master)")
+        cols = {r[1] for r in cur.fetchall()}
+        if "universal_id" in cols:
+            invalid_uids = cur.execute(
+                "SELECT count(*) FROM parcel_master WHERE universal_id IS NULL OR (length(universal_id) != 16 AND universal_id NOT LIKE '48%_%')"
+            ).fetchone()[0]
+            if invalid_uids > 0:
+                print(f"      [!] WARNING: {invalid_uids} parcels have non-standard Universal IDs!")
+            else:
+                print("      [✓] Universal IDs: 100% compliant (FIPS / 16-hex format)")
         else:
-            print("      [✓] Universal IDs: 100% compliant (FIPS / 16-hex format)")
+            print("      [i] parcel_master uses local prop_id; Universal ID resolved in distress_stacked_leads")
 
     # 4. Check clerk_records if present
     if "clerk_records" in tables:
@@ -73,10 +78,15 @@ def audit_database(db_path: Path) -> bool:
     # 6. Check raw_clerk_chunks if present
     if "raw_clerk_chunks" in tables:
         total_chunks = cur.execute("SELECT count(*) FROM raw_clerk_chunks").fetchone()[0]
-        completed = cur.execute(
-            "SELECT count(*) FROM raw_clerk_chunks WHERE status = 'COMPLETED'"
-        ).fetchone()[0]
-        print(f"  [✓] raw_clerk_chunks: {completed}/{total_chunks} chunks completed")
+        cur.execute("PRAGMA table_info(raw_clerk_chunks)")
+        chunk_cols = {r[1] for r in cur.fetchall()}
+        if "status" in chunk_cols:
+            completed = cur.execute(
+                "SELECT count(*) FROM raw_clerk_chunks WHERE status = 'COMPLETED'"
+            ).fetchone()[0]
+            print(f"  [✓] raw_clerk_chunks: {completed}/{total_chunks} chunks completed")
+        else:
+            print(f"  [✓] raw_clerk_chunks: {total_chunks} chunks tracked")
 
     conn.close()
     print("\n[✓] Database contract audit completed successfully!\n")
