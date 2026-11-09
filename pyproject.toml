@@ -1,0 +1,27 @@
+[project]
+name = "rel-repo-standards"
+version = "0.1.0"
+description = "Universal Architecture, Engineering Standards, Data Contracts, and Operational Runbooks for the rel-* Autonomous Real Estate Intelligence Platform"
+readme = "README.md"
+authors = [
+    { name = "saivibecodes-code", email = "saivibecodes@gmail.com" }
+]
+requires-python = ">=3.10"
+dependencies = [
+    "pyyaml>=6.0.1",
+    "tabulate>=0.9.0",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0.0",
+    "ruff>=0.1.0",
+]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
