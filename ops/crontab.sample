@@ -5,16 +5,19 @@
 # Timezone: UTC
 # ==============================================================================
 
-# Daily Ingestion Pipeline
+# Daily Ingestion Pipeline (UTC / America/Chicago 1:15 AM - 2:30 AM CDT)
 # ------------------------------------------------------------------------------
-# 1. Denton County Ingestion (Tax Assessor + Clerk Recordings)
-30 06 * * * cd /home/ubuntu/rel-svc-denton-data && .venv/bin/python3 run_all.py >> logs/cron_denton.log 2>&1
+# 1. Collin County Ingestion (CAD Parcels + Deeds & Liens)
+15 06 * * * /usr/bin/flock -n /tmp/rel-svc-collin-data-pipeline.lock $R/run_pipeline.sh rel-svc-collin-data
 
-# 2. Collin County Ingestion (CAD Parcels + Deeds & Liens)
-00 07 * * * cd /home/ubuntu/rel-svc-collin-data && .venv/bin/python3 run_all.py >> logs/cron_collin.log 2>&1
+# 2. Denton County Ingestion (CAD Roll + Tyler Clerk WebSocket)
+30 06 * * * /usr/bin/flock -n /tmp/rel-svc-denton-data-pipeline.lock $R/run_pipeline.sh rel-svc-denton-data
 
-# 3. Downstream Analytical Synthesis (Motivation Stacking & Parity Reports)
-30 07 * * * /home/ubuntu/rel-repo-standards/ops/bin/run_pipeline.sh rel-aly-works >> /home/ubuntu/rel-aly-works/logs/cron_analytics.log 2>&1
+# 3. MLS Listing Feed (Redfin/NTREIS Scraping & Transforms)
+00 07 * * * /usr/bin/flock -n /tmp/rel-svc-mls-data-pipeline.lock $R/run_pipeline.sh rel-svc-mls-data
+
+# 4. Downstream Analytical Synthesis (Motivation Stacking, WARN Radar & Deal Books)
+30 07 * * * /usr/bin/flock -n /tmp/rel-aly-works-pipeline.lock $R/run_pipeline.sh rel-aly-works
 
 # Weekly Maintenance (Sunday at 03:00 UTC)
 # ------------------------------------------------------------------------------
