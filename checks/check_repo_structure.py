@@ -44,11 +44,11 @@ def check_gitignore(repo_path: Path) -> list[str]:
 
 
 def check_tracked_data_files(repo_path: Path) -> list[str]:
-    """Ensure no data files or databases are tracked by git."""
+    """Ensure no data files, databases, or heavy archives are tracked by git."""
     errors = []
     try:
         res = subprocess.run(
-            ["git", "-C", str(repo_path), "ls-files", "*.db", "*.sqlite*", "*.DAT", "*.zip", "data/*"],
+            ["git", "-C", str(repo_path), "ls-files", "*.db", "*.sqlite*", "*.DAT", "*.zip", "*.har", "data/*"],
             capture_output=True,
             text=True,
             check=False,
@@ -61,6 +61,19 @@ def check_tracked_data_files(repo_path: Path) -> list[str]:
     return errors
 
 
+def check_symlinks(repo_path: Path) -> list[str]:
+    """Ensure zero symlinks exist in the repository to guarantee pure native portability."""
+    errors = []
+    for root, dirs, files in os.walk(repo_path):
+        if ".git" in root or ".venv" in root:
+            continue
+        for name in dirs + files:
+            full_path = Path(root) / name
+            if full_path.is_symlink():
+                errors.append(f"VIOLATION: Found symlink: {full_path.relative_to(repo_path)} -> {os.readlink(full_path)}")
+    return errors
+
+
 def check_repo(repo_path: Path) -> dict:
     results = {"path": repo_path.name, "errors": [], "warnings": []}
 
@@ -70,6 +83,13 @@ def check_repo(repo_path: Path) -> dict:
     if not (repo_path / "README.md").exists():
         results["warnings"].append("Missing README.md")
 
+    # Check for master pipeline runner in operational repos
+    if repo_path.name in ["rel-aly-works", "rel-svc-denton-data", "rel-svc-collin-data", "rel-svc-mls-data"]:
+        if not (repo_path / "run_all.py").exists():
+            results["errors"].append("Missing master pipeline orchestrator: run_all.py")
+        if not (repo_path / "Makefile").exists():
+            results["warnings"].append("Missing Makefile")
+
     # Gitignore checks
     gi_errs = check_gitignore(repo_path)
     results["errors"].extend(gi_errs)
@@ -78,8 +98,12 @@ def check_repo(repo_path: Path) -> dict:
     tracked_errs = check_tracked_data_files(repo_path)
     results["errors"].extend(tracked_errs)
 
+    # Symlink check
+    symlink_errs = check_symlinks(repo_path)
+    results["errors"].extend(symlink_errs)
+
     # Check for deploy script in services/analysis
-    if repo_path.name in ["rel-aly-works", "rel-svc-denton-data", "rel-svc-collin-data"]:
+    if repo_path.name in ["rel-aly-works", "rel-svc-denton-data", "rel-svc-collin-data", "rel-svc-mls-data"]:
         deploy_script = repo_path / "deploy" / "sync_to_vm.sh"
         if not deploy_script.exists():
             results["warnings"].append("Missing deploy/sync_to_vm.sh script")
