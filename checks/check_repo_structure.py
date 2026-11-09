@@ -56,7 +56,7 @@ def check_tracked_data_files(repo_path: Path) -> list[str]:
         tracked = [f.strip() for f in res.stdout.strip().splitlines() if f.strip()]
         if tracked:
             errors.append(f"VIOLATION: Found tracked data files in Git: {', '.join(tracked)}")
-    except Exception as e:
+    except (subprocess.SubprocessError, OSError) as e:
         errors.append(f"Failed to check git tracked files: {e}")
     return errors
 

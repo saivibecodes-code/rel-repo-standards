@@ -7,7 +7,6 @@ for orphaned records.
 """
 
 import argparse
-import re
 import sqlite3
 import sys
 from pathlib import Path
