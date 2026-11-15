@@ -49,7 +49,8 @@ Always invoke the backfill runner with polite rate limiting and date chunking:
 
 ## 3. Running Detached on Oracle VM
 
-For long-running backfills (>1 hour), always execute detached under `nohup`:
+For long-running backfills (>30 minutes), always delegate execution to the Oracle Cloud VM (`svc-ai`).
+See the complete operational guide in [**`VM_DELEGATION_AND_HANDOFF.md`**](file:///Users/sai/Github/rel-repo-standards/RUNBOOKS/VM_DELEGATION_AND_HANDOFF.md) for full instructions on local-to-cloud handoff, progress delta migration, and remote process tracking.
 
 ```bash
 mkdir -p logs
@@ -59,7 +60,7 @@ nohup .venv/bin/python3 run_clerk.py \
     --reverse \
     --delay-min 1.8 \
     --delay-max 3.2 \
-    --batch-size 100 > logs/clerk_backfill.log 2>&1 &
+    --batch-size 100 > logs/clerk_backfill.log 2>&1 < /dev/null &
 ```
 
 ### Monitoring Detached Run:

@@ -97,3 +97,70 @@ Under no circumstances may database files, binary dumps, or archives be committe
    rsync -avzP -e "ssh -i ~/.ssh/id_oci" /local/path/data/county.db ubuntu@100.75.240.71:/remote/path/data/county.db
    ```
 3. SQLite WAL Checkpoint: Always run `PRAGMA wal_checkpoint(TRUNCATE);` before copying a database file to ensure zero unflushed WAL pages.
+
+---
+
+## 5. Protocol: Delegating Long-Running & Heavy Jobs to Oracle VM
+
+To ensure 24/7 continuous execution, prevent laptop sleep/battery dropouts, and leverage the cloud VM's dedicated 24 GB RAM and 4 OCPU, any job meeting the eligibility criteria below **must be delegated to the Oracle Cloud VM**.
+
+### 5.1 Eligibility Criteria for VM Delegation
+A job should run on the Oracle Cloud VM rather than local development when:
+1. **Duration > 30 minutes**: Multi-month/multi-year clerk backfills, historical MLS snapshots, or statewide tax ingestion.
+2. **Rate-Limited Continuous Crawling**: Jobs requiring polite randomized pauses ($1.5\text{s} - 3.2\text{s}$) over hours/days that would be corrupted or cancelled if local Wi-Fi drops or a laptop lid closes.
+3. **High Memory / I/O Footprint**: Statewide entity resolution (e.g., Texas Comptroller 3.5M franchise taxpayers), graph clustering, or cross-county geospatial polygon joins requiring large in-memory hash tables.
+4. **Nightly Production Cadence**: Scheduled daily ingestion or motivation stacking runs.
+
+### 5.2 Server Access & Endpoints
+* **Public IP (Direct):** `ubuntu@155.248.205.250`
+* **Private Mesh (Tailscale):** `ubuntu@100.75.240.71`
+* **SSH Key:** `~/.ssh/id_oci`
+* **Python Runtime:** `.venv/bin/python` under each `/home/ubuntu/rel-*` repository (managed via `uv`).
+
+### 5.3 Delegation Protocol (Standard Operating Procedure)
+
+1. **Local Checkpoint & Flush:**
+   If the job is already running locally, terminate it cleanly so in-flight transactions commit:
+   ```bash
+   kill -TERM <PID>
+   sqlite3 data/county.db "PRAGMA wal_checkpoint(TRUNCATE);"
+   ```
+
+2. **Code Alignment (Pure Git Pull):**
+   Ensure any scraper bug fixes or client improvements are committed and pushed to `main`, then pulled onto the VM:
+   ```bash
+   git commit -am "fix(extract): resilient connection handling"
+   git push origin main
+   ssh -i ~/.ssh/id_oci ubuntu@155.248.205.250 "cd ~/rel-svc-denton-data && git pull origin main"
+   ```
+
+3. **Delta State Transfer (Zero Data Loss):**
+   Export newly completed chunks/records from the local database into a transfer SQLite file and merge into the VM database:
+   ```bash
+   scp -i ~/.ssh/id_oci data/progress_delta.db ubuntu@155.248.205.250:~/rel-svc-denton-data/data/
+   ssh -i ~/.ssh/id_oci ubuntu@155.248.205.250 "python3 -c '
+   import sqlite3
+   con = sqlite3.connect(\"data/denton_county.db\")
+   con.execute(\"ATTACH \\\"data/progress_delta.db\\\" AS delta\")
+   con.execute(\"INSERT OR REPLACE INTO main.raw_clerk_chunks SELECT * FROM delta.raw_clerk_chunks\")
+   con.execute(\"INSERT OR REPLACE INTO main.clerk_records SELECT * FROM delta.clerk_records\")
+   con.commit()
+   '"
+   ```
+
+4. **Detached Background Execution:**
+   Always launch detached using `nohup` with redirected `stdin` (`< /dev/null`) so the SSH session terminates cleanly without blocking or orphaning the process:
+   ```bash
+   ssh -i ~/.ssh/id_oci ubuntu@155.248.205.250 'nohup /home/ubuntu/rel-svc-denton-data/.venv/bin/python /home/ubuntu/rel-svc-denton-data/run_clerk.py \
+       --start 2024-01-01 --end 2025-12-31 --chunk-days 7 --no-distress \
+       > /home/ubuntu/rel-svc-denton-data/data/clerk_backfill.log 2>&1 < /dev/null &'
+   ```
+
+5. **Remote Observability:**
+   Inspect live progress without interfering with execution:
+   ```bash
+   ssh -i ~/.ssh/id_oci ubuntu@155.248.205.250 "tail -f ~/rel-svc-denton-data/data/clerk_backfill.log"
+   ```
+
+6. **Post-Completion Synchronization:**
+   When the remote backfill finishes, trigger post-processing on the VM (e.g. `scripts/link_denton_clerk_records.py`), checkpoint WAL, and sync the finalized SQLite database back to the local workspace if needed.

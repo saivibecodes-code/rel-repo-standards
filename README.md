@@ -78,6 +78,7 @@ The `rel-*` suite is an autonomous, cross-county off-market real estate intellig
 
 ### Runbooks (`RUNBOOKS/`)
 
+* [**`VM_DELEGATION_AND_HANDOFF.md`**](file:///Users/sai/Github/rel-repo-standards/RUNBOOKS/VM_DELEGATION_AND_HANDOFF.md) — Operational recipe for handing off long-running backfills & scrapers (>30m) to the Oracle Cloud VM.
 * [**`ONBOARD_NEW_COUNTY.md`**](file:///Users/sai/Github/rel-repo-standards/RUNBOOKS/ONBOARD_NEW_COUNTY.md) — Complete guide to scaffolding and adding a new county extractor (`rel-svc-tarrant-data`, `rel-svc-dallas-data`).
 * [**`BACKFILL_PROCEDURES.md`**](file:///Users/sai/Github/rel-repo-standards/RUNBOOKS/BACKFILL_PROCEDURES.md) — How to safely execute multi-month/multi-year historical backfills.
 * [**`SMOKE_TESTS_AND_HEALTHCHECKS.md`**](file:///Users/sai/Github/rel-repo-standards/RUNBOOKS/SMOKE_TESTS_AND_HEALTHCHECKS.md) — Verifying end-to-end pipeline health on local and cloud VM.
